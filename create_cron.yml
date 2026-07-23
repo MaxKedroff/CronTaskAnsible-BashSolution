@@ -1,0 +1,43 @@
+---
+- name: Create cron job for runtime logging
+  hosts: localhost
+  connection: local
+  become: yes
+
+  tasks:
+    - name: Remove old cron file if exists
+      ansible.builtin.file:
+        path: /etc/cron.d/test_cron
+        state: absent
+
+    - name: Create cron file with proper format
+      ansible.builtin.copy:
+        dest: /etc/cron.d/test_cron
+        content: |
+          # Ansible managed: test_cron
+          SHELL=/bin/bash
+          PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+
+          */5 * * * * root /bin/date >> /tmp/runtime.txt
+
+        owner: root
+        group: root
+        mode: '0644'
+      notify: restart cron
+
+    - name: Force immediate test run
+      ansible.builtin.shell:
+        cmd: "/bin/date >> /tmp/runtime.txt"
+      register: test_run
+      changed_when: false
+
+    - name: Show result
+      ansible.builtin.debug:
+        msg: " Cron job created! Entries will be added to /tmp/runtime.txt every 5 minutes"
+
+  handlers:
+    - name: restart cron
+      ansible.builtin.systemd:
+        name: cron
+        state: restarted
+      when: ansible_service_mgr == "systemd"
